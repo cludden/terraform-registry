@@ -1,0 +1,12 @@
+log:
+  level: debug
+
+provider:
+  credentials:
+    id: foo
+    secret: bar
+  endpoint: http://localstack:4566
+  bucket: terraform-registry
+  prefix: providers/v1
+  region: us-east-1
+  table: terraform-registry

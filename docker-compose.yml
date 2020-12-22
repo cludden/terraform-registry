@@ -1,0 +1,19 @@
+version: "3"
+services:
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+      - "${PORT_WEB_UI-8080}:${PORT_WEB_UI-8080}"
+    environment:
+      SERVICES: s3,dynamodb
+
+  registry:
+    build:
+      context: .
+    command: [server]
+    ports:
+      - 8000:8000
+    volumes:
+      - ./config.yml:/etc/terraform-registry/config.yml
