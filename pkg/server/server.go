@@ -56,7 +56,7 @@ func NewServer(conf Config) (http.Handler, error) {
 			return nil, fmt.Errorf("error initializing provider.v1 registry: %v", err)
 		}
 		logrus.Debugln("providers.v1 service enabled")
-		services["providers.v1"] = pathPrefix
+		services["providers.v1"] = fmt.Sprintf("%s/", pathPrefix)
 	}
 
 	discovery, err := json.Marshal(services)
