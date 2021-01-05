@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"path"
@@ -93,6 +94,7 @@ type FindProviderPackageOutput struct {
 	Platform            `json:",inline"`
 	DownloadURL         string     `json:"download_url"`
 	Filename            string     `json:"filename"`
+	SHASum              string     `json:"shasum"`
 	SHASumsSignatureURL string     `json:"shasums_signature_url"`
 	SHASumsURL          string     `json:"shasums_url"`
 	SigningKeys         SigningKey `json:"signing_keys"`
@@ -169,8 +171,37 @@ func (s *Service) FindProviderPackage(ctx context.Context, input FindProviderPac
 		return nil, err
 	}
 
-	// generate download url
+	// get checksum file
 	filename := fmt.Sprintf("terraform-provider-%s_v%s_%s_%s.zip", strings.ToLower(input.Type), input.Version, input.OS, input.Arch)
+	shasumsKey := aws.String(path.Join(s.prefix, input.Namespace, input.Type, input.Version, "checksums.txt"))
+	checksums, err := s.s3.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket: s.bucket,
+		Key:    shasumsKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error downloading shasums: %v", err)
+	}
+	defer checksums.Body.Close()
+
+	var shasum string
+	scanner := bufio.NewScanner(checksums.Body)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if n := len(fields); n != 2 {
+			return nil, fmt.Errorf("error parsing shasums: expected line to contain 2 fields, god %d", n)
+		}
+		if fields[1] == filename {
+			shasum = fields[0]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading shasums: %v", err)
+	}
+	if shasum == "" {
+		return nil, fmt.Errorf("missing shasum for file: %s", filename)
+	}
+
+	// generate download url
 	downloadReq, _ := s.s3.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: s.bucket,
 		Key:    aws.String(path.Join(s.prefix, input.Namespace, input.Type, input.Version, filename)),
@@ -183,7 +214,7 @@ func (s *Service) FindProviderPackage(ctx context.Context, input FindProviderPac
 	// generate shasums url
 	shasumsReq, _ := s.s3.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: s.bucket,
-		Key:    aws.String(path.Join(s.prefix, input.Namespace, input.Type, input.Version, "checksums.txt")),
+		Key:    shasumsKey,
 	})
 	shasumsURL, err := shasumsReq.Presign(time.Minute * 15)
 	if err != nil {
@@ -205,6 +236,7 @@ func (s *Service) FindProviderPackage(ctx context.Context, input FindProviderPac
 		DownloadURL:         downloadURL,
 		Filename:            filename,
 		Protocols:           version.Protocols,
+		SHASum:              shasum,
 		SHASumsSignatureURL: signatureURL,
 		SHASumsURL:          shasumsURL,
 		SigningKeys: SigningKey{
