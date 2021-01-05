@@ -65,6 +65,7 @@ func NewServer(conf Config) (http.Handler, error) {
 	}
 
 	r.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
 		w.Write(discovery)
 	})
 
