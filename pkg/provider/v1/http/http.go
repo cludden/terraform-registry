@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	v1 "github.com/cludden/terraform-registry/pkg/provider/v1"
 	"github.com/gorilla/mux"
@@ -91,6 +92,10 @@ func (h *Handler) publishVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	if v, ok := params["version"]; ok || len(v) > 0 {
 		version.Version = v
+	}
+	if strings.HasPrefix(version.Version, "v") {
+		http.Error(w, fmt.Sprintf("validation failed: version %q should not start with v", version.Version), http.StatusUnprocessableEntity)
+		return
 	}
 
 	out, err := h.service.PublishVersion(r.Context(), v1.PublishVersionInput{
